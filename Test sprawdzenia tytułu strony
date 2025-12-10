@@ -1,0 +1,16 @@
+import { test, expect } from '@playwright/test';
+
+test('homepage basic check', async ({ page }) => {
+    
+    await page.goto('http://www.selenium-shop.pl/');
+
+    
+    await page.waitForTimeout(5000);
+
+    
+    await expect(page).toHaveTitle(/Selenium Shop/);
+
+    // 4. Asercja: na stronie są linki <a>
+    const linksCount = await page.locator('a').count();
+    expect(linksCount).toBeGreaterThan(0);
+});
