@@ -1,0 +1,24 @@
+import { test, expect } from '@playwright/test';
+
+test('Czas do DOMContentLoaded < 2500ms', async ({ page }) => {
+    const BUDZET_MS = 2500;
+
+    
+    const start = Date.now();
+
+    
+    await page.goto('https://rahulshettyacademy.com/AutomationPractice/', {
+        waitUntil: 'domcontentloaded',
+    });
+
+    
+    const elapsed = Date.now() - start;
+
+    console.log(`DOMContentLoaded: ${elapsed} ms`);
+
+    
+    expect(
+        elapsed,
+        `Za wolno: ${elapsed}ms (budżet: ${BUDZET_MS}ms)`
+    ).toBeLessThan(BUDZET_MS);
+});
