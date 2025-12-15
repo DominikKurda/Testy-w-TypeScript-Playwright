@@ -1,0 +1,33 @@
+import { test } from '@playwright/test';
+
+test('Wyświetlenie wszystkich unikalnych ID na stronie (debug)', async ({ page }) => {
+    await page.goto('https://rahulshettyacademy.com/AutomationPractice/', {
+        waitUntil: 'domcontentloaded',
+    });
+
+    const uniqueIds = await page.evaluate(() => {
+        const elements = Array.from(document.querySelectorAll<HTMLElement>('[id]'));
+
+        const counts = new Map<string, number>();
+        for (const el of elements) {
+            counts.set(el.id, (counts.get(el.id) ?? 0) + 1);
+        }
+
+        // tylko ID występujące dokładnie 1 raz
+        return elements
+            .filter(el => counts.get(el.id) === 1)
+            .map(el => ({
+                id: el.id,
+                tag: el.tagName.toLowerCase(),
+                selector: `${el.tagName.toLowerCase()}#${el.id}`,
+            }))
+            .sort((a, b) => a.id.localeCompare(b.id));
+    });
+
+    console.log('\n✅ UNIKALNE ID NA STRONIE:\n');
+    uniqueIds.forEach(el => {
+        console.log(`• ${el.selector}`);
+    });
+
+    console.log(`\nŁącznie unikalnych ID: ${uniqueIds.length}`);
+});
