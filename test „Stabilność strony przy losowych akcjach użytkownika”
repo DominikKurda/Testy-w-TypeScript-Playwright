@@ -1,0 +1,116 @@
+import { test, expect } from '@playwright/test';
+
+test('Eksploracyjny: strona przetrwa losowe akcje (monkey test)', async ({ page, context }) => {
+    const STEPS = 25;
+
+    const pageErrors: string[] = [];
+    const consoleErrors: string[] = [];
+
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+    page.on('console', (msg) => {
+        if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+
+    await page.goto('https://rahulshettyacademy.com/AutomationPractice/', {
+        waitUntil: 'domcontentloaded',
+    });
+
+    const actions: Array<{ name: string; run: () => Promise<void> }> = [
+        { name: 'Radio radio1', run: async () => { await page.locator('input[value="radio1"]').check(); } },
+        { name: 'Radio radio2', run: async () => { await page.locator('input[value="radio2"]').check(); } },
+        {
+            name: 'Checkbox option1',
+            run: async () => {
+                const cb = page.locator('#checkBoxOption1');
+                if (await cb.isChecked()) await cb.uncheck();
+                else await cb.check();
+            },
+        },
+        {
+            name: 'Dropdown option2',
+            run: async () => {
+                await page.selectOption('#dropdown-class-example', { value: 'option2' });
+            },
+        },
+        {
+            name: 'Autocomplete pol',
+            run: async () => {
+                const input = page.locator('#autocomplete');
+                await input.fill('');
+                await input.type('pol', { delay: 30 });
+            },
+        },
+        { name: 'Hide textbox', run: async () => { await page.locator('#hide-textbox').click(); } },
+        { name: 'Show textbox', run: async () => { await page.locator('#show-textbox').click(); } },
+        {
+            name: 'Fill textbox',
+            run: async () => {
+                const box = page.locator('#displayed-text');
+                if (await box.isVisible()) {
+                    await box.fill(`test-${Math.floor(Math.random() * 1000)}`);
+                }
+            },
+        },
+        {
+            name: 'Alert accept',
+            run: async () => {
+                page.once('dialog', async (d) => await d.accept());
+                await page.locator('#alertbtn').click();
+            },
+        },
+        {
+            name: 'Confirm dismiss',
+            run: async () => {
+                page.once('dialog', async (d) => await d.dismiss());
+                await page.locator('#confirmbtn').click();
+            },
+        },
+        {
+            name: 'Mouse hover reload',
+            run: async () => {
+                const hover = page.locator('#mousehover');
+                await hover.scrollIntoViewIfNeeded();
+                await hover.hover();
+                const reload = page.locator('a[href*="AutomationPractice"]').filter({ hasText: /Reload/i });
+                if (await reload.count()) await reload.first().click();
+            },
+        },
+        {
+            name: 'Open tab',
+            run: async () => {
+                const [newPage] = await Promise.all([
+                    context.waitForEvent('page'),
+                    page.locator('#opentab').click(),
+                ]);
+                await newPage.waitForLoadState('domcontentloaded');
+                await newPage.close();
+            },
+        },
+        { name: 'Scroll down', run: async () => { await page.mouse.wheel(0, 800); } },
+        { name: 'Scroll up', run: async () => { await page.mouse.wheel(0, -800); } },
+    ];
+
+    const seed = Date.now();
+    console.log(`[MONKEY] Seed: ${seed}`);
+    let rngState = seed;
+
+    const rand = (max: number) => {
+        rngState = (rngState * 1664525 + 1013904223) % 4294967296;
+        return rngState % max;
+    };
+
+    for (let i = 1; i <= STEPS; i++) {
+        const action = actions[rand(actions.length)];
+        console.log(`[MONKEY] Step ${i}/${STEPS}: ${action.name}`);
+
+        try {
+            await action.run();
+            await page.waitForLoadState('domcontentloaded');
+        } catch (e: any) {
+            throw new Error(`[MONKEY] Błąd na kroku ${i}: ${action.name}\n${e?.message ?? e}`);
+        }
+    }
+
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
+});
