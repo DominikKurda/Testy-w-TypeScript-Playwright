@@ -1,0 +1,21 @@
+import { test, expect } from '@playwright/test';
+
+test('Użytkownik może się zalogować do systemu', async ({ page }) => {
+    await page.goto('https://demobank.jaktestowac.pl/logowanie_prod.html');
+
+    const loginInput = page.locator('#login_id');
+    const nextButton = page.getByRole('button', { name: /dalej/i });
+
+    await loginInput.fill('');
+    await loginInput.type('domino12');
+    await nextButton.click();
+
+    const passwordInput = page.locator('#login_password');
+    await passwordInput.waitFor({ state: 'visible' });
+    await passwordInput.type('domino20');
+
+    await page.getByRole('button', { name: /zaloguj się/i }).click();
+
+    // ✅ Asercja po zalogowaniu – link "Wyloguj"
+    await expect(page.getByRole('link', { name: /wyloguj/i })).toBeVisible();
+});
