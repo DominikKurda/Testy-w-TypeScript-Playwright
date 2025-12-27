@@ -1,0 +1,21 @@
+import { test, expect } from '@playwright/test';
+
+test('Logowanie z za krótkim hasłem - użytkownik nie powinien się zalogować', async ({ page }) => {
+    // Ekran z identyfikatorem i hasłem
+    await page.goto('https://demobank.jaktestowac.pl/logowanie_etap_2.html');
+
+    // identyfikator – poprawna długość (8 znaków)
+    const loginInput = page.locator('#login_id');
+    await expect(loginInput).toBeVisible();
+    await loginInput.fill('domino12');
+
+    // hasło – za krótkie (np. 4 znaki)
+    const passwordInput = page.locator('#login_password');
+    await expect(passwordInput).toBeVisible();
+    await passwordInput.fill('abcd');
+
+    const loginButton = page.getByRole('button', { name: /zaloguj się/i });
+
+    // ❌ użytkownik nie powinien móc się zalogować – przycisk pozostaje disabled
+    await expect(loginButton).toBeDisabled();
+});
