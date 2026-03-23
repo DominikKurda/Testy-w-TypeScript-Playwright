@@ -16,6 +16,6 @@ test('Użytkownik może się zalogować do systemu', async ({ page }) => {
 
     await page.getByRole('button', { name: /zaloguj się/i }).click();
 
-    // ✅ Asercja po zalogowaniu – link "Wyloguj"
+    //  Asercja po zalogowaniu – link "Wyloguj"
     await expect(page.getByRole('link', { name: /wyloguj/i })).toBeVisible();
 });
