@@ -1,0 +1,135 @@
+from playwright.sync_api import sync_playwright, expect
+import random
+
+
+def test_utworz_usluge_i_zapisz_z_linkiem():
+    LOGIN = "dominikkurda6@gmail.com"
+    HASLO = "domino2024D"
+    BASE_URL = "https://ndsbnhq893.go6.publigo.onl"
+
+    nazwa_uslugi = f"Usluga_testowa_{random.randint(1000, 9999)}"
+    losowa_cena = str(random.randint(50, 5000))
+    losowy_link = f"https://example.com/oferta-{random.randint(1000, 9999)}"
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False, slow_mo=250)
+        page = browser.new_page()
+        page.set_viewport_size({"width": 1920, "height": 1080})
+
+        # 1. Logowanie
+        page.goto(f"{BASE_URL}/wp-login.php")
+        page.fill("#user_login", LOGIN)
+        page.fill("#user_pass", HASLO)
+
+        with page.expect_navigation():
+            page.click("#wp-submit")
+
+        expect(page.locator("#wpadminbar")).to_be_visible()
+        print("✅ Logowanie OK")
+
+        # 2. Strona usług
+        page.goto(f"{BASE_URL}/wp-admin/admin.php?page=publigo-services")
+        expect(page.locator("body")).to_contain_text("Utwórz nową usługę")
+
+        # 3. Utwórz usługę
+        page.get_by_text("Utwórz nową usługę", exact=True).click()
+
+        page.get_by_placeholder("Podaj nazwę usługi").fill(nazwa_uslugi)
+        page.get_by_placeholder("Podaj cenę usługi").fill(losowa_cena)
+
+        print(f"✅ Nazwa usługi: {nazwa_uslugi}")
+        print(f"✅ Losowa cena: {losowa_cena} zł")
+
+        page.get_by_text("Utwórz i edytuj", exact=True).click()
+        page.wait_for_timeout(3000)
+
+        print("✅ Kliknięto: Utwórz i edytuj")
+
+        # 4. Przewiń do sekcji Sprzedaż
+        page.mouse.wheel(0, 3000)
+        page.wait_for_timeout(1000)
+
+        for tekst in [
+            "Włącz sprzedaż",
+            "Pokaż usługę w katalogu",
+            "Pokaż przycisk zakupu",
+        ]:
+            el = page.get_by_text(tekst, exact=True)
+            if el.count() > 0:
+                try:
+                    el.first.scroll_into_view_if_needed()
+                    el.first.click(force=True)
+                    print(f"✅ Kliknięto: {tekst}")
+                    page.wait_for_timeout(500)
+                except:
+                    pass
+
+        # 5. Przewiń do linku zewnętrznego
+        page.mouse.wheel(0, 3000)
+        page.wait_for_timeout(1000)
+
+        link_input = page.locator(
+            "xpath=//*[contains(normalize-space(), 'Link do zewnętrznej oferty')]"
+            "/following::input[1]"
+        ).first
+
+        expect(link_input).to_be_visible()
+        link_input.click()
+        link_input.fill(losowy_link)
+
+        print(f"✅ Wpisano link zewnętrzny: {losowy_link}")
+
+        # 6. Zapisz
+        save_button = page.locator(
+            "xpath=//*[normalize-space()='Link do zewnętrznej oferty']"
+            "/following::button[normalize-space()='Zapisz'][1]"
+        ).first
+
+        if save_button.count() == 0:
+            save_button = page.locator("button:has-text('Zapisz')").last
+
+        expect(save_button).to_be_visible()
+        save_button.scroll_into_view_if_needed()
+        save_button.click()
+
+        page.wait_for_timeout(3000)
+
+        expect(page.locator("body")).not_to_contain_text("Niepoprawny format adresu url")
+
+        print("✅ Usługa została zapisana poprawnie")
+
+        # 7. Pobierz i wypisz link zakupowy
+        page.mouse.wheel(0, 3000)
+        page.wait_for_timeout(1500)
+
+        link_zakupowy = None
+
+        possible_links = page.locator(
+            "a[href*='http'], input[type='text'], input[value*='http'], textarea"
+        )
+
+        for i in range(possible_links.count()):
+            try:
+                element = possible_links.nth(i)
+
+                href = element.get_attribute("href")
+
+                if not href:
+                    try:
+                        href = element.input_value()
+                    except:
+                        href = element.inner_text()
+
+                if href and href.startswith("http"):
+                    link_zakupowy = href
+                    break
+            except:
+                pass
+
+        if link_zakupowy:
+            print(f"✅ Wygenerowany link zakupowy: {link_zakupowy}")
+        else:
+            print("⚠ Nie znaleziono linku zakupowego")
+
+        page.wait_for_timeout(3000)
+        browser.close()
