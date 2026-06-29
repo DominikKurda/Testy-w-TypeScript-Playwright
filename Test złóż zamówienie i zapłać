@@ -1,48 +1,125 @@
 import { test, expect } from '@playwright/test';
 
+const HOME_URL = 'http://www.selenium-shop.pl/';
+const CART_URL = 'http://www.selenium-shop.pl/koszyk/';
+const CHECKOUT_URL = 'http://www.selenium-shop.pl/zamowienie/';
+
 const PRODUCTS = [
-    "http://www.selenium-shop.pl/produkt/koszulka-tottenham-hotspur-f-c/",
-    "http://www.selenium-shop.pl/produkt/14/",
-    "http://www.selenium-shop.pl/produkt/koszulka-liverpool-fc/",
+  'http://www.selenium-shop.pl/produkt/koszulka-tottenham-hotspur-f-c/',
+  'http://www.selenium-shop.pl/produkt/14/',
+  'http://www.selenium-shop.pl/produkt/koszulka-liverpool-fc/',
 ];
 
-const CART_URL = "http://www.selenium-shop.pl/koszyk/";
-const CHECKOUT_URL = "http://www.selenium-shop.pl/zamowienie/";
+const CUSTOMER = {
+  firstName: 'Jan',
+  lastName: 'Kowalski',
+  address: 'ul. Testowa 1',
+  postcode: '00-001',
+  city: 'Warszawa',
+  phone: '123456789',
+  email: 'jan.kowalski@example.com',
+};
 
-test('checkout and click buy with flexible payment', async ({ page }) => {
-    // 1. Dodaj trzy koszulki do koszyka
-    for (const url of PRODUCTS) {
-        await page.goto(url);
+test('User can purchase three products', async ({ page }) => {
+  // =========================
+  // Lokatory produktu
+  // =========================
+  const quantityInput = page.locator('input.qty');
+  const addToCartButton = page.locator('button.single_add_to_cart_button');
+  const successMessage = page.locator('.woocommerce-message');
 
-        const qtyInput = await page.locator('input.qty');
-        if (await qtyInput.isVisible()) {
-            await qtyInput.fill('1');
-        }
+  // =========================
+  // Lokatory formularza
+  // =========================
+  const firstNameInput = page.locator('#billing_first_name');
+  const lastNameInput = page.locator('#billing_last_name');
+  const addressInput = page.locator('#billing_address_1');
+  const postcodeInput = page.locator('#billing_postcode');
+  const cityInput = page.locator('#billing_city');
+  const phoneInput = page.locator('#billing_phone');
+  const emailInput = page.locator('#billing_email');
 
-        await page.locator('button.single_add_to_cart_button').click();
-        await page.waitForSelector('.woocommerce-message');
+  // =========================
+  // Lokatory płatności
+  // =========================
+  const paymentMethod = page.locator('li.wc_payment_method label').first();
+  const placeOrderButton = page.locator('#place_order');
+  const orderConfirmation = page.locator(
+      '.woocommerce-thankyou-order-received'
+  );
+
+  // =========================
+  // Funkcja dodawania produktu
+  // =========================
+  const addProductToCart = async (productUrl: string) => {
+    await page.goto(productUrl);
+
+    if (await quantityInput.isVisible()) {
+      await quantityInput.fill('1');
     }
 
-    // 2. Przejdź do koszyka, potem do zamówienia
-    await page.goto(CART_URL);
-    await page.goto(CHECKOUT_URL);
+    await expect(addToCartButton).toBeVisible();
+    await addToCartButton.click();
 
-    // 3. Wypełnij wymagane pola billingowe
-    await page.fill('#billing_first_name', 'Jan');
-    await page.fill('#billing_last_name', 'Kowalski');
-    await page.fill('#billing_address_1', 'ul. Testowa 1');
-    await page.fill('#billing_postcode', '00-001');
-    await page.fill('#billing_city', 'Warszawa');
-    await page.fill('#billing_phone', '123456789');
-    await page.fill('#billing_email', 'jan.kowalski@example.com');
+    await expect(successMessage).toBeVisible();
+  };
 
-    // 4. Wybierz pierwszy dostępny sposób płatności
-    const firstPaymentLabel = page.locator('li.wc_payment_method label').first();
-    await firstPaymentLabel.click();
+  // =========================
+  // 1. Otwórz stronę główną
+  // =========================
+  await page.goto(HOME_URL, {
+    waitUntil: 'domcontentloaded',
+  });
 
-    // 5. Kliknij "Kupuję i płacę"
-    await page.locator('#place_order').click();
+  await expect(page).toHaveURL(HOME_URL);
 
-    // 6. Potwierdzenie — jeśli nie ma błędów, test uznajemy za zaliczony
-    await expect(page.locator('.woocommerce-thankyou-order-received')).toBeVisible();
+  // Wyświetl stronę główną przez 2 sekundy
+  await page.waitForTimeout(2000);
+
+  // =========================
+  // 2. Dodaj produkty do koszyka
+  // =========================
+  for (const product of PRODUCTS) {
+    await addProductToCart(product);
+  }
+
+  // =========================
+  // 3. Przejdź do koszyka
+  // =========================
+  await page.goto(CART_URL);
+  await expect(page).toHaveURL(CART_URL);
+
+  // =========================
+  // 4. Przejdź do strony zamówienia
+  // =========================
+  await page.goto(CHECKOUT_URL);
+  await expect(page).toHaveURL(CHECKOUT_URL);
+
+  // =========================
+  // 5. Wypełnij formularz zamówienia
+  // =========================
+  await firstNameInput.fill(CUSTOMER.firstName);
+  await lastNameInput.fill(CUSTOMER.lastName);
+  await addressInput.fill(CUSTOMER.address);
+  await postcodeInput.fill(CUSTOMER.postcode);
+  await cityInput.fill(CUSTOMER.city);
+  await phoneInput.fill(CUSTOMER.phone);
+  await emailInput.fill(CUSTOMER.email);
+
+  // =========================
+  // 6. Wybierz metodę płatności
+  // =========================
+  await expect(paymentMethod).toBeVisible();
+  await paymentMethod.click();
+
+  // =========================
+  // 7. Kliknij "Kupuję i płacę"
+  // =========================
+  await expect(placeOrderButton).toBeEnabled();
+  await placeOrderButton.click();
+
+  // =========================
+  // 8. Zweryfikuj potwierdzenie zamówienia
+  // =========================
+  await expect(orderConfirmation).toBeVisible();
 });
