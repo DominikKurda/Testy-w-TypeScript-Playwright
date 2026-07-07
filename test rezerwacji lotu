@@ -1,58 +1,151 @@
 import { test, expect } from '@playwright/test';
 
+// =========================
+// Stałe
+// =========================
+const HOME_URL = 'https://www.blazedemo.com';
+
+const ROUTE = {
+  from: 'Boston',
+  to: 'Berlin',
+};
+
+const PASSENGER = {
+  name: 'Jan Kowalski',
+  address: 'ul. Marszałkowska 1',
+  city: 'Warszawa',
+  state: 'Mazowieckie',
+  zipCode: '00-001',
+  creditCard: '4111111111111111',
+  month: '12',
+  year: '2025',
+  cardName: 'JAN KOWALSKI',
+};
+
 test('Rezerwacja lotu Boston → Berlin', async ({ page }) => {
-  // 1) Otwórz główną stronę i poczekaj na tytuł
-  await page.goto('https://www.blazedemo.com');
+  // =========================
+  // Lokatory strony głównej
+  // =========================
+  const departureSelect = page.locator('select[name="fromPort"]');
+  const destinationSelect = page.locator('select[name="toPort"]');
+  const findFlightsButton = page.locator('input[type="submit"]');
+
+  // =========================
+  // Lokatory listy lotów
+  // =========================
+  const flightRows = page.locator('table.table tbody tr');
+  const firstFlightButton = flightRows.first().locator('input[type="submit"]');
+
+  // =========================
+  // Lokatory formularza
+  // =========================
+  const nameInput = page.locator('#inputName');
+  const addressInput = page.locator('#address');
+  const cityInput = page.locator('#city');
+  const stateInput = page.locator('#state');
+  const zipCodeInput = page.locator('#zipCode');
+  const cardNumberInput = page.locator('#creditCardNumber');
+  const cardMonthInput = page.locator('input[name="creditCardMonth"]');
+  const cardYearInput = page.locator('input[name="creditCardYear"]');
+  const nameOnCardInput = page.locator('#nameOnCard');
+  const rememberMeCheckbox = page.locator('#rememberMe');
+  const purchaseButton = page.locator('input[type="submit"]');
+
+  // =========================
+  // Lokatory potwierdzenia
+  // =========================
+  const confirmationHeader = page.locator('h1');
+  const confirmationId = page.locator(
+    'table tbody tr:nth-child(1) td:nth-child(2)',
+  );
+
+  // =========================
+  // Funkcja wypełniania formularza
+  // =========================
+  const fillPassengerForm = async () => {
+    await nameInput.fill(PASSENGER.name);
+    await addressInput.fill(PASSENGER.address);
+    await cityInput.fill(PASSENGER.city);
+    await stateInput.fill(PASSENGER.state);
+    await zipCodeInput.fill(PASSENGER.zipCode);
+    await cardNumberInput.fill(PASSENGER.creditCard);
+    await cardMonthInput.fill(PASSENGER.month);
+    await cardYearInput.fill(PASSENGER.year);
+    await nameOnCardInput.fill(PASSENGER.cardName);
+
+    if (await rememberMeCheckbox.isVisible().catch(() => false)) {
+      await rememberMeCheckbox.check().catch(() => {});
+    }
+  };
+
+  // =========================
+  // 1. Otwórz stronę główną
+  // =========================
+  await page.goto(HOME_URL, {
+    waitUntil: 'domcontentloaded',
+  });
+
   await expect(page).toHaveTitle('BlazeDemo');
 
-  // 2) Wybierz trasę Boston → Berlin i kliknij „Find Flights”
-  await page.selectOption('select[name="fromPort"]', { label: 'Boston' });
-  await page.selectOption('select[name="toPort"]', { label: 'Berlin' });
-  await page.click('input[type="submit"]');
+  // =========================
+  // 2. Wybierz trasę lotu
+  // =========================
+  await departureSelect.selectOption({
+    label: ROUTE.from,
+  });
 
-  // 3) Zweryfikuj, że jesteś na /reserve.php i nagłówek jest poprawny
+  await destinationSelect.selectOption({
+    label: ROUTE.to,
+  });
+
+  await expect(findFlightsButton).toBeVisible();
+  await findFlightsButton.click();
+
+  // =========================
+  // 3. Zweryfikuj listę lotów
+  // =========================
   await expect(page).toHaveURL(/\/reserve\.php/);
-  await expect(page.locator('h3').first()).toContainText('Flights from Boston to Berlin');
 
-  // 4) Wybierz pierwszy lot
-  const rows = page.locator('table.table tbody tr');
-  const rowCount = await rows.count();
-  expect(rowCount).toBeGreaterThan(0);
-  await rows.first().locator('input[type="submit"]').click();
+  await expect(page.locator('h3')).toContainText(
+    `Flights from ${ROUTE.from} to ${ROUTE.to}`,
+  );
 
-  // 5) Poczekaj na formularz zakupu
+  expect(await flightRows.count()).toBeGreaterThan(0);
+
+  // =========================
+  // 4. Wybierz pierwszy lot
+  // =========================
+  await expect(firstFlightButton).toBeVisible();
+  await firstFlightButton.click();
+
+  // =========================
+  // 5. Zweryfikuj formularz zakupu
+  // =========================
   await expect(page).toHaveURL(/\/purchase\.php/);
 
-  // 6) Wypełnij dane pasażera
-  await page.fill('#inputName', 'Jan Kowalski');
-  await page.fill('#address', 'ul. Marszałkowska 1, Warszawa');
-  await page.fill('#city', 'Warszawa');
-  await page.fill('#state', 'Mazowieckie');
-  await page.fill('#zipCode', '00-001');
-  await page.fill('#creditCardNumber', '4111111111111111');
+  // =========================
+  // 6. Wypełnij formularz
+  // =========================
+  await fillPassengerForm();
 
-  // miesiąc i rok po name
-  await page.locator('input[name="creditCardMonth"]').fill('12');
-  await page.locator('input[name="creditCardYear"]').fill('2025');
+  // =========================
+  // 7. Kup bilet
+  // =========================
+  await expect(purchaseButton).toBeEnabled();
+  await purchaseButton.click();
 
-  await page.fill('#nameOnCard', 'JAN KOWALSKI');
+  // =========================
+  // 8. Zweryfikuj potwierdzenie
+  // =========================
+  await expect(confirmationHeader).toHaveText(/Thank you for your purchase/);
 
-  // opcjonalny checkbox „Remember me”
-  const remember = page.locator('#rememberMe');
-  if (await remember.count()) {
-    await remember.check().catch(() => {});
-  }
+  // =========================
+  // 9. Zweryfikuj numer potwierdzenia
+  // =========================
+  const bookingId = (await confirmationId.textContent())?.trim();
 
-  // 7) Kup
-  await page.click('input[type="submit"]');
+  expect(bookingId).not.toBeNull();
+  expect(bookingId!).toMatch(/^\d+$/);
 
-  // 8) Weryfikacja potwierdzenia
-  await expect(page.locator('h1')).toHaveText(/Thank you for your purchase/);
-
-  // 9) Sprawdź numer potwierdzenia (pierwsza komórka wiersza wyników)
-  const confirmationId = (await page
-      .locator('table tbody tr:nth-child(1) td:nth-child(2)')
-      .innerText()).trim();
-
-  expect(confirmationId).toMatch(/^\d+$/);
+  console.log(`Numer rezerwacji: ${bookingId}`);
 });
