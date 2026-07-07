@@ -1,21 +1,44 @@
 import { test, expect } from '@playwright/test';
 
+// =========================
+// Stałe
+// =========================
 const HOME_URL = 'http://www.selenium-shop.pl/';
-const PRODUCT_URL =
-  'http://www.selenium-shop.pl/produkt/koszulka-manchester-fc-city/';
+const PRODUCT_URL = 'http://www.selenium-shop.pl/produkt/koszulka-manchester-fc-city/';
 const CART_URL = 'http://www.selenium-shop.pl/koszyk/';
+
+const PRODUCT = {
+  quantity: '2',
+  expectedPrice: 360,
+};
 
 test('Cena za 2 koszulki wynosi 360 zł', async ({ page }) => {
   // =========================
-  // Lokatory
+  // Lokatory produktu
   // =========================
   const quantityInput = page.locator('input.qty');
   const addToCartButton = page.locator('button.single_add_to_cart_button');
   const successMessage = page.locator('.woocommerce-message');
 
+  // =========================
+  // Lokatory koszyka
+  // =========================
   const cartPrice = page.locator(
     'td.product-subtotal .woocommerce-Price-amount, td.product-subtotal bdi',
   );
+
+  // =========================
+  // Funkcja pobierania ceny
+  // =========================
+  const getCartPrice = async (): Promise<number> => {
+    const priceText = await cartPrice.textContent();
+
+    expect(priceText).not.toBeNull();
+
+    return parseFloat(
+      priceText!.replace(/[^0-9.,]/g, '').replace(',', '.'),
+    );
+  };
 
   // =========================
   // 1. Otwórz stronę główną
@@ -26,7 +49,6 @@ test('Cena za 2 koszulki wynosi 360 zł', async ({ page }) => {
 
   await expect(page).toHaveURL(HOME_URL);
 
-  // Wyświetl stronę główną przez 2 sekundy
   await page.waitForTimeout(2000);
 
   // =========================
@@ -35,9 +57,10 @@ test('Cena za 2 koszulki wynosi 360 zł', async ({ page }) => {
   await page.goto(PRODUCT_URL);
 
   // =========================
-  // 3. Ustaw ilość na 2
+  // 3. Ustaw ilość produktu
   // =========================
-  await quantityInput.fill('2');
+  await expect(quantityInput).toBeVisible();
+  await quantityInput.fill(PRODUCT.quantity);
 
   // =========================
   // 4. Dodaj produkt do koszyka
@@ -57,19 +80,12 @@ test('Cena za 2 koszulki wynosi 360 zł', async ({ page }) => {
   // =========================
   // 6. Pobierz cenę
   // =========================
-  const priceText = await cartPrice.textContent();
-
-  expect(priceText).not.toBeNull();
-
-  const cartTotal = parseFloat(
-    priceText!.replace(/[^0-9.,]/g, '').replace(',', '.'),
-  );
+  const cartTotal = await getCartPrice();
 
   console.log(`Cena w koszyku: ${cartTotal} zł`);
 
   // =========================
-  // 7. Weryfikacja ceny
+  // 7. Zweryfikuj cenę
   // =========================
-  expect(cartTotal).toBe(360);
+  expect(cartTotal).toBe(PRODUCT.expectedPrice);
 });
-
