@@ -1,64 +1,162 @@
 import { test, expect } from '@playwright/test';
 
-const URL = 'https://www.blazedemo.com';
-const TITLE = 'BlazeDemo';
+// =========================
+// Stałe
+// =========================
+const HOME_URL = 'https://www.blazedemo.com';
+const PAGE_TITLE = 'BlazeDemo';
 
-const scenariusze: [string, string][] = [
-    ["Boston",      "Berlin"],
-    ["Paris",       "Rome"],
-    ["Philadelphia","London"],
-    ["Portland",    "New York"],
+const ROUTES = [
+  {
+    from: 'Boston',
+    to: 'Berlin',
+  },
+  {
+    from: 'Paris',
+    to: 'Rome',
+  },
+  {
+    from: 'Philadelphia',
+    to: 'London',
+  },
+  {
+    from: 'Portland',
+    to: 'New York',
+  },
 ];
 
-test.describe('Rezerwacja wielu tras ✈️', () => {
-    for (const [src, dst] of scenariusze) {
-        test(`Rezerwacja lotu z ${src} do ${dst}`, async ({ page }) => {
-            // 1) Otwórz stronę i wybierz trasę
-            await page.goto(URL);
-            await expect(page).toHaveTitle(TITLE);
-            await page.selectOption('select[name="fromPort"]', { label: src });
-            await page.selectOption('select[name="toPort"]', { label: dst });
-            await page.locator('input[type="submit"]').click();
+const PASSENGER = {
+  name: 'Jan Kowalski',
+  address: 'ul. Przykładowa 1',
+  city: 'Warszawa',
+  state: 'Mazowieckie',
+  zipCode: '00-001',
+  creditCard: '4111111111111111',
+  month: '12',
+  year: '2025',
+  cardName: 'JAN KOWALSKI',
+};
 
-            // 2) Sprawdź listę ofert
-            await expect(page).toHaveURL(/.*reserve\.php.*/);
-            const header = await page.locator('h3').textContent();
-            expect(header).toContain(`Flights from ${src} to ${dst}`);
+test.describe('Rezerwacja wielu tras', () => {
+  for (const route of ROUTES) {
+    test(`Rezerwacja lotu ${route.from} → ${route.to}`, async ({ page }) => {
+      // =========================
+      // 1. Otwórz stronę główną
+      // =========================
+      await page.goto(HOME_URL, {
+        waitUntil: 'domcontentloaded',
+      });
 
-            const rows = page.locator('table.table tbody tr');
-            const rowCount = await rows.count();
-            expect(rowCount).toBeGreaterThan(0);
-            await rows.first().locator('input[type="submit"]').click();
+      await expect(page).toHaveTitle(PAGE_TITLE);
 
-            // 3) Formularz zakupu
-            await expect(page).toHaveURL(/.*purchase\.php.*/);
-            await page.fill('#inputName', 'Jan Kowalski');
-            await page.fill('#address', 'ul. Przykładowa 1');
-            await page.fill('#city', 'Warszawa');
-            await page.fill('#state', 'Mazowieckie');
-            await page.fill('#zipCode', '00-001');
-            await page.fill('#creditCardNumber', '4111111111111111');
-            await page.fill('input[name="creditCardMonth"]', '12');
-            await page.fill('input[name="creditCardYear"]', '2025');
-            await page.fill('#nameOnCard', 'JAN KOWALSKI');
+      // =========================
+      // 2. Wybierz trasę lotu
+      // =========================
+      const departureSelect = page.locator('select[name="fromPort"]');
+      const destinationSelect = page.locator('select[name="toPort"]');
+      const findFlightsButton = page.locator('input[type="submit"]');
 
-            const rememberMe = page.locator('#rememberMe');
-            if (await rememberMe.count()) {
-                if (!(await rememberMe.isChecked())) {
-                    await rememberMe.check();
-                }
-            }
+      await departureSelect.selectOption({
+        label: route.from,
+      });
 
-            await page.locator('input[type="submit"]').click();
+      await destinationSelect.selectOption({
+        label: route.to,
+      });
 
-            // 4) Sprawdź potwierdzenie
-            const title = await page.locator('h1').textContent();
-            expect(title).toContain('Thank you for your purchase');
-            const confirmationId = await page.locator('table tbody tr:nth-child(1) td:nth-child(2)').textContent();
-            expect(confirmationId?.trim()).toMatch(/^\d+$/);
+      await expect(findFlightsButton).toBeVisible();
+      await findFlightsButton.click();
 
-            // Pauza
-            await page.waitForTimeout(1000);
-        });
-    }
+      // =========================
+      // 3. Zweryfikuj listę lotów
+      // =========================
+      const flightRows = page.locator('table.table tbody tr');
+
+      await expect(page).toHaveURL(/\/reserve\.php/);
+
+      await expect(page.locator('h3')).toContainText(
+        `Flights from ${route.from} to ${route.to}`,
+      );
+
+      expect(await flightRows.count()).toBeGreaterThan(0);
+
+      // =========================
+      // 4. Wybierz pierwszy lot
+      // =========================
+      const firstFlightButton = flightRows
+        .first()
+        .locator('input[type="submit"]');
+
+      await expect(firstFlightButton).toBeVisible();
+      await firstFlightButton.click();
+
+      // =========================
+      // 5. Zweryfikuj formularz zakupu
+      // =========================
+      await expect(page).toHaveURL(/\/purchase\.php/);
+
+      // =========================
+      // 6. Wypełnij formularz
+      // =========================
+      const nameInput = page.locator('#inputName');
+      const addressInput = page.locator('#address');
+      const cityInput = page.locator('#city');
+      const stateInput = page.locator('#state');
+      const zipCodeInput = page.locator('#zipCode');
+      const cardNumberInput = page.locator('#creditCardNumber');
+      const cardMonthInput = page.locator('input[name="creditCardMonth"]');
+      const cardYearInput = page.locator('input[name="creditCardYear"]');
+      const nameOnCardInput = page.locator('#nameOnCard');
+      const rememberMeCheckbox = page.locator('#rememberMe');
+
+      const fillPassengerForm = async () => {
+        await nameInput.fill(PASSENGER.name);
+        await addressInput.fill(PASSENGER.address);
+        await cityInput.fill(PASSENGER.city);
+        await stateInput.fill(PASSENGER.state);
+        await zipCodeInput.fill(PASSENGER.zipCode);
+        await cardNumberInput.fill(PASSENGER.creditCard);
+        await cardMonthInput.fill(PASSENGER.month);
+        await cardYearInput.fill(PASSENGER.year);
+        await nameOnCardInput.fill(PASSENGER.cardName);
+
+        if (await rememberMeCheckbox.isVisible().catch(() => false)) {
+          await rememberMeCheckbox.check().catch(() => {});
+        }
+      };
+
+      await fillPassengerForm();
+
+      // =========================
+      // 7. Kup bilet
+      // =========================
+      const purchaseButton = page.locator('input[type="submit"]');
+
+      await expect(purchaseButton).toBeEnabled();
+      await purchaseButton.click();
+
+      // =========================
+      // 8. Zweryfikuj potwierdzenie
+      // =========================
+      const confirmationHeader = page.locator('h1');
+
+      await expect(confirmationHeader).toHaveText(
+        /Thank you for your purchase/,
+      );
+
+      // =========================
+      // 9. Zweryfikuj numer potwierdzenia
+      // =========================
+      const confirmationId = page.locator(
+        'table tbody tr:nth-child(1) td:nth-child(2)',
+      );
+
+      const bookingId = (await confirmationId.textContent())?.trim();
+
+      expect(bookingId).not.toBeNull();
+      expect(bookingId!).toMatch(/^\d+$/);
+
+      console.log(`Numer rezerwacji: ${bookingId}`);
+    });
+  }
 });
